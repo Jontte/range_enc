@@ -1,0 +1,8 @@
+[package]
+name = "range_enc"
+version = "0.1.0"
+authors = ["Joonas Haapala <joonas@haapa.la>"]
+
+[dependencies]
+getopts = "0.2"
+num = "*"
