@@ -3,93 +3,31 @@ extern crate num;
 
 use getopts::Options;
 use std::env;
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
+use std::io::{BufReader, BufWriter};
+use std::fs::{File};
 
 mod sum_tree;
 mod coder;
 
 fn encode(input: &str, output: &str) {
 
-	let mut k = coder::Encoder::new();
+	let f_in = File::open(input).expect("Unable to open file");
+	let f_out = File::create(output).expect("Unable to open file");
 
-	let mut f_in = File::open(input).ok().expect("Unable to open file");
-	let mut f_out = File::create(output).ok().expect("Unable to open file");
+	let f_in = BufReader::new(f_in);
+	let f_out = BufWriter::new(f_out);
 
-	let mut buf_in = vec![0; 4096];
-	let mut buf_out: u8 = 0;
-	let mut buf_out_counter: u8 = 0;
-
-	{
-		let mut write_bit = |bit| {
-
-			buf_out = (buf_out << 1) | (bit as u8);
-			buf_out_counter += 1;
-
-			if buf_out_counter >= 8 {
-				buf_out_counter = 0;
-
-				f_out.write_all(&[buf_out]).ok().expect("Error writing to file");
-				buf_out = 0;
-			}
-		};
-
-		loop {
-			let n = f_in.read(&mut buf_in[..]).ok().expect("I/O error");
-
-			for byte in buf_in[0..n].iter() {
-				k.push_byte(*byte, &mut write_bit);
-			}
-
-			if n <= 0 {
-				break
-			}
-		}
-		k.push_eof(&mut write_bit);
-	}
-
-	if buf_out_counter > 0 {
-		buf_out <<= 8 - buf_out_counter;
-		f_out.write(&[buf_out]).ok().expect("Error writing to file");
-	}
+	coder::encode(f_in, f_out);
 }
 fn decode(input: &str, output: &str) {
 
-	let mut k = coder::Decoder::new();
+	let f_in = File::open(input).expect("Unable to open file");
+	let f_out = File::create(output).expect("Unable to open file");
 
-	let mut f_in = File::open(input).ok().expect("Unable to open file");
-	let mut f_out = File::create(output).ok().expect("Unable to open file");
+	let f_in = BufReader::new(f_in);
+	let f_out = BufWriter::new(f_out);
 
-	let mut buf_in = vec![0; 4096];
-
-	let mut write_byte = |byte: u8| {
-		f_out.write_all(&[byte]).ok().expect("Error writing to file");
-	};
-
-	let mut finished = false;
-
-	loop {
-		let n = f_in.read(&mut buf_in[..]).ok().expect("I/O error");
-
-		for byte in buf_in[0..n].iter() {
-			if !k.push_byte(*byte, &mut write_byte) {
-				finished = true;
-				break;
-			}
-		}
-		if n <= 0 {
-			break
-		}
-	}
-
-	if !finished {
-		for _ in 0..32 {
-			if !k.push_byte(0u8, &mut write_byte) {
-				break;
-			}
-		}
-	}
+	coder::decode(f_in, f_out)
 }
 
 fn print_usage(program: &str, opts: Options) {
