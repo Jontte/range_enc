@@ -91,7 +91,7 @@ pub fn encode<R, W>(read: R, mut write: W) where R: Read, W: Write {
 					}
 				}
 				if ctx.tree.get(symbol) < SYMBOL_MAX_FREQ {
-					//ctx.tree.increment(symbol as u32, 1);
+					ctx.tree.increment(symbol as u32, 1);
 				}
 			};
 
@@ -182,7 +182,7 @@ pub fn decode<R, W>(read: R, mut write: W) where R: Read, W: Write {
 				ctx.low  = ctx.low + slice_length * range_low;
 
 				if ctx.tree.get(symbol) < SYMBOL_MAX_FREQ {
-					//ctx.tree.increment(symbol as u32, 1);
+					ctx.tree.increment(symbol as u32, 1);
 				}
 
 				println!("decoded sym {}", symbol as u32);
