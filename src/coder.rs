@@ -185,9 +185,9 @@ pub fn decode<R, W>(read: R, mut write: W) where R: Read, W: Write {
 					ctx.tree.increment(symbol as u32, 1);
 				}
 
-				println!("decoded sym {}", symbol as u32);
+				//println!("decoded sym {}", symbol as u32);
 				if symbol == EOF_SYMBOL {
-					println!("hit eof!");
+					//println!("hit eof!");
 					return false;
 				}
 				else {
