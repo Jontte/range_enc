@@ -28,7 +28,6 @@ struct Encoder<'a>
 
 impl<'a> Encoder<'a>
 {
-	//fn new<R>(read: R) -> Encoder where R: Read {
 	pub fn new(read: &mut Read) -> Encoder {
 
 		let n_symbols = 257; // 256 bytes + EOF marker
@@ -55,8 +54,6 @@ impl<'a> Encoder<'a>
 		if self.out_bit_counter == 8 {
 
 			self.out_byte_buffer.push_back(self.out_bit_buffer);
-//			write.write_all(&[self.out_bit_buffer as u8]).expect("Error writing to file");
-
 			self.out_bit_counter = 0;
 			self.out_bit_buffer = 0;
 		}
@@ -144,7 +141,6 @@ impl<'a> Encoder<'a>
 					return Err(x)
 				}
 			}
-			//println!("got {}", self.read.bytes().next().ok());
 		}
 		Ok(self.out_byte_buffer.pop_front().unwrap())
 	}
@@ -212,7 +208,7 @@ impl<'a> Decoder<'a> {
 	}
 	fn push_bit(&mut self, bit: bool) {
 
-		// consume bit by building buffer in the beginning...?
+		// consume bit by building buffer in the beginning...
 		if self.prepend_bit_counter > 0 {
 			self.buffer = (self.buffer << 1) | bit as u32;
 			self.prepend_bit_counter -= 1;
@@ -296,7 +292,6 @@ impl<'a> Decoder<'a> {
 					return Err(x)
 				}
 			}
-			//println!("got {}", self.read.bytes().next().ok());
 		}
 		Ok(self.out_byte_buffer.pop_front().unwrap())
 	}
