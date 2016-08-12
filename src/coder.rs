@@ -1,6 +1,6 @@
 use sum_tree::SumTree;
-
-use std::io::{Read, Write};
+use std::io::{Read, Write, Result};
+use std::collections::vec_deque::VecDeque;
 
 // most significant bit kept free to avoid overflows
 const MAX_VALUE: u32 =           0x80000000u32;
@@ -8,222 +8,364 @@ const THREE_QUARTER_VALUE: u32 = 0x60000000u32;
 const HALF_VALUE: u32 =          0x40000000u32;
 const QUARTER_VALUE: u32 =       0x20000000u32;
 
-const SYMBOL_MAX_FREQ: u32 = 2 << 16;
+const SYMBOL_MAX_FREQ: u32 = 1 << 16;
 const EOF_SYMBOL: usize = 256;
 
-pub fn encode<R, W>(read: R, mut write: W) where R: Read, W: Write {
+const INCREMENT_STEP: u32 = 10;
 
-	let n_symbols = 257; // 256 bytes + EOF marker
-	let mut tree = SumTree::new(n_symbols);
+struct Encoder<'a>
+{
+	read: &'a mut Read,
+	low: u32,
+	high: u32,
+	scale_counter: u32,
+	tree: SumTree<u32>,
+	out_byte_buffer: VecDeque<u8>,
+	out_bit_counter: u8,
+	out_bit_buffer: u8,
+	input_exhausted: bool,
+}
 
-	for i in 0..n_symbols {
-		tree.increment(i as u32, 1);
+impl<'a> Encoder<'a>
+{
+	//fn new<R>(read: R) -> Encoder where R: Read {
+	pub fn new(read: &mut Read) -> Encoder {
+
+		let n_symbols = 257; // 256 bytes + EOF marker
+		let mut tree = SumTree::new(n_symbols);
+
+		for i in 0..n_symbols {
+			tree.increment(i as u32, 1);
+		}
+		Encoder {
+			read: read,
+			low: 0,
+			high: MAX_VALUE,
+			scale_counter: 0,
+			tree: tree,
+			out_byte_buffer: VecDeque::new(),
+			out_bit_counter: 0,
+			out_bit_buffer: 0,
+			input_exhausted: false
+		}
 	}
+	fn write_bit(&mut self, bit: bool) {
+		self.out_bit_buffer = (self.out_bit_buffer << 1) | (bit as u8);
+		self.out_bit_counter += 1;
+		if self.out_bit_counter == 8 {
 
-	struct Ctx {
-		low: u32,
-		high: u32,
-		scale_counter: u32,
-		out_bit_counter: u8,
-		out_bit_buffer: u32,
-		tree: SumTree<u32>
-	};
+			self.out_byte_buffer.push_back(self.out_bit_buffer);
+//			write.write_all(&[self.out_bit_buffer as u8]).expect("Error writing to file");
 
-	let mut ctx = Ctx {
-		low: 0,
-		high: MAX_VALUE,
-		scale_counter: 0,
-		out_bit_counter: 0,
-		out_bit_buffer: 0,
-		tree: tree
-	};
+			self.out_bit_counter = 0;
+			self.out_bit_buffer = 0;
+		}
+	}
+	fn push_symbol(&mut self, symbol: usize) {
+		let slice_length = (self.high - self.low + 1) / self.tree.get_total();
+		let slice_begin  = self.tree.get_before(symbol);
+		let slice_end    = slice_begin + self.tree.get(symbol);
 
-	{
-		let mut write_bit = |ctx: &mut Ctx, bit: bool| {
-			ctx.out_bit_buffer = (ctx.out_bit_buffer << 1) | (bit as u32);
-			ctx.out_bit_counter += 1;
-			if ctx.out_bit_counter == 8 {
-				write.write_all(&[ctx.out_bit_buffer as u8]).expect("Error writing to file");
-				ctx.out_bit_counter = 0;
-				ctx.out_bit_buffer = 0;
+		self.high = self.low + slice_length * slice_end-1;
+		self.low  = self.low + slice_length * slice_begin;
+
+		loop {
+			if self.high < HALF_VALUE {
+				self.write_bit(false);
+				for _ in 0..self.scale_counter {
+					self.write_bit(true);
+				}
+				self.scale_counter = 0;
+				self.low  = 2 * self.low;
+				self.high = 2 * self.high + 1;
+
+				continue;
 			}
-		};
 
+			if self.low >= HALF_VALUE {
+				self.write_bit(true);
+				for _ in 0..self.scale_counter {
+					self.write_bit(false);
+				}
+				self.scale_counter = 0;
+				self.low  = 2 * (self.low  - HALF_VALUE);
+				self.high = 2 * (self.high - HALF_VALUE) + 1;
+
+				continue;
+			}
+			if self.low >= QUARTER_VALUE && self.high < THREE_QUARTER_VALUE {
+
+				self.scale_counter = self.scale_counter + 1;
+				self.low  = 2 * (self.low  - QUARTER_VALUE);
+				self.high = 2 * (self.high - QUARTER_VALUE) + 1;
+
+				continue;
+			}
+			break;
+		}
+		if self.tree.get(symbol) < SYMBOL_MAX_FREQ {
+			self.tree.increment(symbol as u32, INCREMENT_STEP);
+		}
+	}
+	fn get_byte(&mut self) -> Result<u8> {
+
+		// push bytes from input until there is something to read..
+		while self.out_byte_buffer.len() == 0
 		{
-			let mut push_symbol = |ctx: &mut Ctx, symbol: usize| {
-
-				let slice_length = (ctx.high - ctx.low + 1) / ctx.tree.get_total();
-				let slice_begin  = ctx.tree.get_before(symbol);
-				let slice_end    = slice_begin + ctx.tree.get(symbol);
-
-				ctx.high = ctx.low + slice_length * slice_end-1;
-				ctx.low  = ctx.low + slice_length * slice_begin;
-
-				let mut done: bool = false;
-				while !done {
-
-					done = true;
-					while ctx.high < HALF_VALUE {
-						write_bit(ctx, false);
-						for _ in 0..ctx.scale_counter {
-							write_bit(ctx, true);
-						}
-						done = false;
-						ctx.scale_counter = 0;
-						ctx.low  = 2 * ctx.low;
-						ctx.high = 2 * ctx.high + 1;
-					}
-					while ctx.low >= HALF_VALUE {
-						write_bit(ctx, true);
-						for _ in 0..ctx.scale_counter {
-							write_bit(ctx, false);
-						}
-						done = false;
-						ctx.scale_counter = 0;
-						ctx.low  = 2 * (ctx.low  - HALF_VALUE);
-						ctx.high = 2 * (ctx.high - HALF_VALUE) + 1;
-					}
-					while ctx.low >= QUARTER_VALUE && ctx.high < THREE_QUARTER_VALUE {
-						done = false;
-						ctx.scale_counter = ctx.scale_counter + 1;
-						ctx.low  = 2 * (ctx.low  - QUARTER_VALUE);
-						ctx.high = 2 * (ctx.high - QUARTER_VALUE) + 1;
-					}
+			let mut byte = [0u8];
+			match self.read.read_exact(&mut byte)
+			{
+				Ok(_) => {
+					self.push_symbol(byte[0] as usize);
 				}
-				if ctx.tree.get(symbol) < SYMBOL_MAX_FREQ {
-					ctx.tree.increment(symbol as u32, 1);
+				Err(x) => {
+					if !self.input_exhausted {
+						self.push_symbol(EOF_SYMBOL);
+
+						// make sure there are enough bits to decode the rest of the message
+						if self.low < QUARTER_VALUE {
+							self.write_bit(false);
+							for _ in 0..self.scale_counter+1 {
+								self.write_bit(true);
+							}
+						}
+						else {
+							self.write_bit(true);
+						}
+						if self.out_bit_counter > 0 {
+							self.out_bit_buffer <<= 8 - self.out_bit_counter;
+							self.out_byte_buffer.push_back(self.out_bit_buffer as u8);
+						}
+						self.input_exhausted = true
+					}
+					if self.out_byte_buffer.len() > 0 {
+						return Ok(self.out_byte_buffer.pop_front().unwrap());
+					}
+					return Err(x)
 				}
-			};
-
-			for byte in read.bytes() {
-				push_symbol(&mut ctx, byte.unwrap() as usize);
 			}
-			// Push EOF
-			push_symbol(&mut ctx, EOF_SYMBOL);
+			//println!("got {}", self.read.bytes().next().ok());
 		}
-		if ctx.low < QUARTER_VALUE {
-			write_bit(&mut ctx, false);
-			for _ in 0..ctx.scale_counter+1 {
-				write_bit(&mut ctx, true);
-			}
-		}
-		else {
-			write_bit(&mut ctx, true);
-		}
-	}
-
-	if ctx.out_bit_counter > 0 {
-		ctx.out_bit_buffer <<= 8 - ctx.out_bit_counter;
-		write.write_all(&[ctx.out_bit_buffer as u8]).expect("Error writing to file");
+		Ok(self.out_byte_buffer.pop_front().unwrap())
 	}
 }
 
-pub fn decode<R, W>(read: R, mut write: W) where R: Read, W: Write {
+impl<'a> Read for Encoder<'a>
+{
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 
-	struct Ctx {
-		low: u32,
-		high: u32,
-		buffer: u32,
-		prepend_bit_counter: u32,
-		tree: SumTree<u32>,
-	};
+		let mut counter: usize = 0;
 
-	let n_symbols = 257; // 256 bytes + EOF marker
-	let mut tree = SumTree::new(n_symbols);
-	for i in 0..n_symbols {
-		tree.increment(i as u32, 1);
+		while counter < buf.len() {
+			match self.get_byte() {
+				Ok(byte) => {
+					buf[counter] = byte;
+					counter += 1;
+				}
+				Err(x) => {
+					if counter == 0 {
+						return Err(x);
+					}
+					return Ok(counter);
+				}
+			}
+			counter += 1;
+		}
+		Ok(counter)
 	}
+}
 
-	let mut ctx = Ctx {
-		low: 0,
-		high: MAX_VALUE,
-		buffer: 0,
-		prepend_bit_counter: 31,
-		tree: tree
-	};
+struct Decoder<'a>
+{
+	read: &'a mut Read,
+	out_byte_buffer: VecDeque<u8>,
+	low: u32,
+	high: u32,
+	buffer: u32,
+	prepend_bit_counter: u32,
+	tree: SumTree<u32>,
+	hit_eof: bool,
+	got_eof_symbol: bool,
+}
 
-	let mut push_bit = |ctx: &mut Ctx, bit: bool| -> bool {
+impl<'a> Decoder<'a> {
 
-		if ctx.prepend_bit_counter > 0 {
-			ctx.buffer = (ctx.buffer << 1) | bit as u32;
-			ctx.prepend_bit_counter -= 1;
-			return true;
+	fn new(read: &mut Read) -> Decoder {
+
+		let n_symbols = 257; // 256 bytes + EOF marker
+		let mut tree = SumTree::new(n_symbols);
+		for i in 0..n_symbols {
+			tree.increment(i as u32, 1);
 		}
 
+		Decoder {
+			read: read,
+			out_byte_buffer: VecDeque::new(),
+			low: 0,
+			high: MAX_VALUE,
+			buffer: 0,
+			prepend_bit_counter: 31,
+			tree: tree,
+			hit_eof: false,
+			got_eof_symbol: false,
+		}
+	}
+	fn push_bit(&mut self, bit: bool) {
+
+		// consume bit by building buffer in the beginning...?
+		if self.prepend_bit_counter > 0 {
+			self.buffer = (self.buffer << 1) | bit as u32;
+			self.prepend_bit_counter -= 1;
+			return;
+		}
+
+		// loop until bit is consumed..
 		loop
 		{
-			if ctx.high < HALF_VALUE {
-				ctx.low    = ctx.low    * 2;
-				ctx.high   = ctx.high   * 2 + 1;
-				ctx.buffer = ctx.buffer * 2 + bit as u32;
+			if self.high < HALF_VALUE {
+				self.low    = self.low    * 2;
+				self.high   = self.high   * 2 + 1;
+				self.buffer = self.buffer * 2 + bit as u32;
 				break;
 			}
-			else if ctx.low >= HALF_VALUE {
-				ctx.low    = 2 * (ctx.low    - HALF_VALUE);
-				ctx.high   = 2 * (ctx.high   - HALF_VALUE) + 1;
-				ctx.buffer = 2 * (ctx.buffer - HALF_VALUE) + bit as u32;
+			else if self.low >= HALF_VALUE {
+				self.low    = 2 * (self.low    - HALF_VALUE);
+				self.high   = 2 * (self.high   - HALF_VALUE) + 1;
+				self.buffer = 2 * (self.buffer - HALF_VALUE) + bit as u32;
 				break;
 			}
-			else if (QUARTER_VALUE <= ctx.low) && (ctx.high < THREE_QUARTER_VALUE) {
-				ctx.low    = 2 * (ctx.low    - QUARTER_VALUE);
-				ctx.high   = 2 * (ctx.high   - QUARTER_VALUE) + 1;
-				ctx.buffer = 2 * (ctx.buffer - QUARTER_VALUE) + bit as u32;
+			else if (QUARTER_VALUE <= self.low) && (self.high < THREE_QUARTER_VALUE) {
+				self.low    = 2 * (self.low    - QUARTER_VALUE);
+				self.high   = 2 * (self.high   - QUARTER_VALUE) + 1;
+				self.buffer = 2 * (self.buffer - QUARTER_VALUE) + bit as u32;
 				break;
 			}
 			else {
-				let slice_length = (ctx.high - ctx.low + 1) / ctx.tree.get_total();
-				let value = (ctx.buffer - ctx.low) / slice_length;
-				let symbol = ctx.tree.get_index(value);
+				let slice_length = (self.high - self.low + 1) / self.tree.get_total();
+				let value = (self.buffer - self.low) / slice_length;
+				let symbol = self.tree.get_index(value);
 
-				let range_low = ctx.tree.get_before(symbol);
-				let range_high = range_low + ctx.tree.get(symbol);
+				let range_low = self.tree.get_before(symbol);
+				let range_high = range_low + self.tree.get(symbol);
 
-				ctx.high = ctx.low + slice_length * range_high - 1;
-				ctx.low  = ctx.low + slice_length * range_low;
+				self.high = self.low + slice_length * range_high - 1;
+				self.low  = self.low + slice_length * range_low;
 
-				if ctx.tree.get(symbol) < SYMBOL_MAX_FREQ {
-					ctx.tree.increment(symbol as u32, 1);
+				if self.tree.get(symbol) < SYMBOL_MAX_FREQ {
+					self.tree.increment(symbol as u32, INCREMENT_STEP);
 				}
 
-				//println!("decoded sym {}", symbol as u32);
 				if symbol == EOF_SYMBOL {
-					//println!("hit eof!");
-					return false;
+					self.got_eof_symbol = true;
 				}
 				else {
-					write.write_all(&[symbol as u8]).expect("Unable to write to stream!");
+					if !self.got_eof_symbol {
+						self.out_byte_buffer.push_back(symbol as u8);
+					}
 				}
 			}
 		}
-		return true;
-	};
-
-	let mut push_byte = |ctx: &mut Ctx, byte: u8| -> bool {
-		let mut mask = 128;
-		for _ in 0..8 {
-			if !push_bit(ctx, (byte & mask) != 0) {
-				return false;
-			}
-			mask >>= 1;
+	}
+	fn push_byte(&mut self, byte: u8) {
+		for b in 0..8 {
+			self.push_bit(byte & (1 << (7-b)) > 0);
 		};
-		return true;
-	};
+	}
+	fn get_byte(&mut self) -> Result<u8> {
 
-	for byte in read.bytes() {
-		if !push_byte(&mut ctx, byte.unwrap()) {
-			// eof reached, file finished
-			return;
+		// push bytes from input until there is something to read..
+		while self.out_byte_buffer.len() == 0
+		{
+			let mut byte = [0u8];
+			match self.read.read_exact(&mut byte)
+			{
+				Ok(_) => {
+					self.push_byte(byte[0]);
+				}
+				Err(x) => {
+					if !self.hit_eof {
+						self.hit_eof = true;
+						// push zeros in hopes of finding the EOF
+   		   				for _ in 0..20 {
+               				self.push_byte(0);
+						}
+					}
+					if self.out_byte_buffer.len() > 0 {
+						return Ok(self.out_byte_buffer.pop_front().unwrap());
+					}
+					return Err(x)
+				}
+			}
+			//println!("got {}", self.read.bytes().next().ok());
 		}
+		Ok(self.out_byte_buffer.pop_front().unwrap())
 	}
-	// push zeros in hopes of finding the EOF
-	for _ in 0..20 {
-		if !push_byte(&mut ctx, 0) {
-			return;
-		}
-	}
-	// reading failed...?
 }
 
+impl<'a> Read for Decoder<'a>
+{
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize>  {
+
+		let mut counter: usize = 0;
+		while counter < buf.len()
+		{
+			match self.get_byte() {
+				Ok(byte) => {
+					buf[counter] = byte;
+				}
+				Err(x) => {
+					if counter > 0 {
+						return Ok(counter);
+					}
+					return Err(x);
+				}
+			}
+			counter += 1;
+		}
+
+		Ok(counter)
+	}
+}
+
+
+pub fn encode(read: &mut Read, write: &mut Write) -> Result<()> {
+
+	let enc = Encoder::new(read);
+	for byte in enc.bytes() {
+		match byte {
+			Ok(b) => {
+				match write.write_all(&[b]) {
+					Ok(_) => {},
+					Err(x) => return Err(x)
+				}
+			},
+		 	Err(_) => {
+				break;
+			}
+		}
+	}
+	Ok(())
+}
+
+pub fn decode(read: &mut Read, write: &mut Write) -> Result<()> {
+
+	let dec = Decoder::new(read);
+
+	for byte in dec.bytes() {
+		match byte {
+			Ok(b) => {
+				match write.write_all(&[b]) {
+					Ok(_) => {},
+					Err(x) => return Err(x)
+				}
+			},
+		 	Err(_) => {
+				break;
+			}
+		}
+	}
+	Ok(())
+}
 
 #[test]
 fn test_coder_vec() {
@@ -239,8 +381,8 @@ fn test_coder_vec() {
 	encoded.resize(10000, 0);
 	buf2.resize(10000, 0);
 
-	encode(buf.as_slice(), encoded.as_mut_slice());
-	decode(encoded.as_slice(), buf2.as_mut_slice());
+	encode(&mut buf.as_slice(), &mut encoded.as_mut_slice()).unwrap();
+	decode(&mut encoded.as_slice(), &mut buf2.as_mut_slice()).unwrap();
 
 	buf2.resize(buf.len(), 0);
 
@@ -258,8 +400,8 @@ fn test_coder_file() {
 		buf.push((i % 100) as u8);
 	}
 
-	encode(buf.as_slice(), File::create("tmp.cargotest").expect("Unable to open file"));
-	decode(File::open("tmp.cargotest").expect("Unable to open file"), File::create("tmp.cargotest2").expect("Unable to open file"));
+	encode(&mut buf.as_slice(), &mut File::create("tmp.cargotest").expect("Unable to open file")).unwrap();
+	decode(&mut File::open("tmp.cargotest").expect("Unable to open file"), &mut File::create("tmp.cargotest2").expect("Unable to open file")).unwrap();
 
 	buf2.clear();
 	File::open("tmp.cargotest2").expect("Unable to open file").read_to_end(&mut buf2).unwrap();

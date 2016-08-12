@@ -14,20 +14,21 @@ fn encode(input: &str, output: &str) {
 	let f_in = File::open(input).expect("Unable to open file");
 	let f_out = File::create(output).expect("Unable to open file");
 
-	let f_in = BufReader::new(f_in);
-	let f_out = BufWriter::new(f_out);
+	let mut f_in = BufReader::new(f_in);
+	let mut f_out = BufWriter::new(f_out);
 
-	coder::encode(f_in, f_out);
+	coder::encode(&mut f_in, &mut f_out).unwrap();
 }
+
 fn decode(input: &str, output: &str) {
 
 	let f_in = File::open(input).expect("Unable to open file");
 	let f_out = File::create(output).expect("Unable to open file");
 
-	let f_in = BufReader::new(f_in);
-	let f_out = BufWriter::new(f_out);
+	let mut f_in = BufReader::new(f_in);
+	let mut f_out = BufWriter::new(f_out);
 
-	coder::decode(f_in, f_out)
+	coder::decode(&mut f_in, &mut f_out).unwrap();
 }
 
 fn print_usage(program: &str, opts: Options) {
