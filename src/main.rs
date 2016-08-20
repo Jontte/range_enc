@@ -6,8 +6,11 @@ use std::env;
 use std::io::{BufReader, BufWriter};
 use std::fs::File;
 
+mod dictionary;
 mod sum_tree;
 mod coder;
+mod encoder;
+mod decoder;
 
 fn encode(input: &str, output: &str) {
 
@@ -17,7 +20,7 @@ fn encode(input: &str, output: &str) {
     let mut f_in = BufReader::new(f_in);
     let mut f_out = BufWriter::new(f_out);
 
-    coder::encode(&mut f_in, &mut f_out).unwrap();
+    encoder::encode(&mut f_in, &mut f_out).unwrap();
 }
 
 fn decode(input: &str, output: &str) {
@@ -28,7 +31,7 @@ fn decode(input: &str, output: &str) {
     let mut f_in = BufReader::new(f_in);
     let mut f_out = BufWriter::new(f_out);
 
-    coder::decode(&mut f_in, &mut f_out).unwrap();
+    decoder::decode(&mut f_in, &mut f_out).unwrap();
 }
 
 fn print_usage(program: &str, opts: Options) {
