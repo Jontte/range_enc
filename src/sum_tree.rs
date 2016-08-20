@@ -15,16 +15,17 @@ fn upper_power_of_two(mut v: u32) -> u32 {
 
 pub struct SumTree<T> {
     tree: Vec<T>,
-    start_index: usize
+    start_index: usize,
 }
 
-impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
-
+impl<T> SumTree<T>
+    where T: num::Num + Copy + num::traits::NumCast + cmp::Ord
+{
     pub fn new(buckets: usize) -> SumTree<T> {
-        let start = (upper_power_of_two(buckets as u32)-1) as usize;
+        let start = (upper_power_of_two(buckets as u32) - 1) as usize;
         SumTree {
             tree: vec![NumCast::from(0).unwrap(); (2*start+1) as usize],
-            start_index: start
+            start_index: start,
         }
     }
 
@@ -42,7 +43,7 @@ impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
     }
 
     pub fn get(&self, bucket: usize) -> T {
-        //assert(index+start_index < m_tree.size());
+        // assert(index+start_index < m_tree.size());
         self.tree[bucket + self.start_index]
     }
 
@@ -55,9 +56,9 @@ impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
         let mut index = bucket + self.start_index;
         while index != 0 {
             if (index & 1) == 0 {
-                ret = ret + self.tree[index-1];
+                ret = ret + self.tree[index - 1];
             }
-            index = (index-1) >> 1;
+            index = (index - 1) >> 1;
         }
         ret
     }
@@ -67,10 +68,9 @@ impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
         let mut index: usize = 0;
         let mut value = value;
 
-        loop
-        {
-            let left = 2*index+1;
-            let right = 2*index+2;
+        loop {
+            let left = 2 * index + 1;
+            let right = 2 * index + 2;
 
             if left >= self.tree.len() {
                 break;
@@ -78,8 +78,7 @@ impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
 
             if value < self.tree[left] {
                 index = left;
-            }
-            else {
+            } else {
                 value = value - self.tree[left];
                 index = right;
             }
@@ -92,10 +91,10 @@ impl<T> SumTree<T> where T: num::Num + Copy + num::traits::NumCast + cmp::Ord {
 fn test_tree() {
 
     let mut tree = SumTree::<u32>::new(8);
-    tree.increment(0,10);
-    tree.increment(1,10);
-    tree.increment(2,10);
-    tree.increment(7,1);
+    tree.increment(0, 10);
+    tree.increment(1, 10);
+    tree.increment(2, 10);
+    tree.increment(7, 1);
 
     assert!(tree.get_before(0) == 0);
     assert!(tree.get_before(0) + tree.get(0) == 10);

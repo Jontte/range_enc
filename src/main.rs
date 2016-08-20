@@ -4,7 +4,7 @@ extern crate num;
 use getopts::Options;
 use std::env;
 use std::io::{BufReader, BufWriter};
-use std::fs::{File};
+use std::fs::File;
 
 mod sum_tree;
 mod coder;
@@ -46,8 +46,8 @@ fn main() {
     opts.optflag("h", "help", "print this help menu");
 
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
 
     if matches.opt_present("h") {
@@ -57,12 +57,12 @@ fn main() {
 
     let output = match matches.opt_str("o") {
         Some(x) => x,
-        None => "out.bin".into()
+        None => "out.bin".into(),
     };
 
     let mode = match matches.opt_str("mode") {
         Some(x) => x,
-        None => "encode".into()
+        None => "encode".into(),
     };
     if mode != "encode" && mode != "decode" {
         print_usage(&program, opts);
@@ -78,8 +78,7 @@ fn main() {
 
     if mode == "encode" {
         encode(&input, &output);
-    }
-    else {
+    } else {
         decode(&input, &output);
     }
 }

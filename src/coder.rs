@@ -3,18 +3,16 @@ use std::io::{Read, Write, Result};
 use std::collections::vec_deque::VecDeque;
 
 // most significant bit kept free to avoid overflows
-const MAX_VALUE: u32 =           0x80000000u32;
+const MAX_VALUE: u32 = 0x80000000u32;
 const THREE_QUARTER_VALUE: u32 = 0x60000000u32;
-const HALF_VALUE: u32 =          0x40000000u32;
-const QUARTER_VALUE: u32 =       0x20000000u32;
+const HALF_VALUE: u32 = 0x40000000u32;
+const QUARTER_VALUE: u32 = 0x20000000u32;
 
 const SYMBOL_MAX_FREQ: u32 = 1 << 16;
 const EOF_SYMBOL: usize = 256;
-
 const INCREMENT_STEP: u32 = 10;
 
-struct Encoder<'a>
-{
+struct Encoder<'a> {
     read: &'a mut Read,
     low: u32,
     high: u32,
@@ -26,8 +24,7 @@ struct Encoder<'a>
     input_exhausted: bool,
 }
 
-impl<'a> Encoder<'a>
-{
+impl<'a> Encoder<'a> {
     pub fn new(read: &mut Read) -> Encoder {
 
         let n_symbols = 257; // 256 bytes + EOF marker
@@ -45,14 +42,13 @@ impl<'a> Encoder<'a>
             out_byte_buffer: VecDeque::new(),
             out_bit_counter: 0,
             out_bit_buffer: 0,
-            input_exhausted: false
+            input_exhausted: false,
         }
     }
     fn write_bit(&mut self, bit: bool) {
         self.out_bit_buffer = (self.out_bit_buffer << 1) | (bit as u8);
         self.out_bit_counter += 1;
         if self.out_bit_counter == 8 {
-
             self.out_byte_buffer.push_back(self.out_bit_buffer);
             self.out_bit_counter = 0;
             self.out_bit_buffer = 0;
@@ -60,11 +56,11 @@ impl<'a> Encoder<'a>
     }
     fn push_symbol(&mut self, symbol: usize) {
         let slice_length = (self.high - self.low + 1) / self.tree.get_total();
-        let slice_begin  = self.tree.get_before(symbol);
-        let slice_end    = slice_begin + self.tree.get(symbol);
+        let slice_begin = self.tree.get_before(symbol);
+        let slice_end = slice_begin + self.tree.get(symbol);
 
-        self.high = self.low + slice_length * slice_end-1;
-        self.low  = self.low + slice_length * slice_begin;
+        self.high = self.low + slice_length * slice_end - 1;
+        self.low = self.low + slice_length * slice_begin;
 
         loop {
             if self.high < HALF_VALUE {
@@ -73,7 +69,7 @@ impl<'a> Encoder<'a>
                     self.write_bit(true);
                 }
                 self.scale_counter = 0;
-                self.low  = 2 * self.low;
+                self.low = 2 * self.low;
                 self.high = 2 * self.high + 1;
 
                 continue;
@@ -85,7 +81,7 @@ impl<'a> Encoder<'a>
                     self.write_bit(false);
                 }
                 self.scale_counter = 0;
-                self.low  = 2 * (self.low  - HALF_VALUE);
+                self.low = 2 * (self.low - HALF_VALUE);
                 self.high = 2 * (self.high - HALF_VALUE) + 1;
 
                 continue;
@@ -93,7 +89,7 @@ impl<'a> Encoder<'a>
             if self.low >= QUARTER_VALUE && self.high < THREE_QUARTER_VALUE {
 
                 self.scale_counter = self.scale_counter + 1;
-                self.low  = 2 * (self.low  - QUARTER_VALUE);
+                self.low = 2 * (self.low - QUARTER_VALUE);
                 self.high = 2 * (self.high - QUARTER_VALUE) + 1;
 
                 continue;
@@ -107,11 +103,9 @@ impl<'a> Encoder<'a>
     fn get_byte(&mut self) -> Result<u8> {
 
         // push bytes from input until there is something to read..
-        while self.out_byte_buffer.len() == 0
-        {
+        while self.out_byte_buffer.len() == 0 {
             let mut byte = [0u8];
-            match self.read.read_exact(&mut byte)
-            {
+            match self.read.read_exact(&mut byte) {
                 Ok(_) => {
                     self.push_symbol(byte[0] as usize);
                 }
@@ -122,11 +116,10 @@ impl<'a> Encoder<'a>
                         // make sure there are enough bits to decode the rest of the message
                         if self.low < QUARTER_VALUE {
                             self.write_bit(false);
-                            for _ in 0..self.scale_counter+1 {
+                            for _ in 0..self.scale_counter + 1 {
                                 self.write_bit(true);
                             }
-                        }
-                        else {
+                        } else {
                             self.write_bit(true);
                         }
                         if self.out_bit_counter > 0 {
@@ -138,7 +131,7 @@ impl<'a> Encoder<'a>
                     if self.out_byte_buffer.len() > 0 {
                         return Ok(self.out_byte_buffer.pop_front().unwrap());
                     }
-                    return Err(x)
+                    return Err(x);
                 }
             }
         }
@@ -146,8 +139,7 @@ impl<'a> Encoder<'a>
     }
 }
 
-impl<'a> Read for Encoder<'a>
-{
+impl<'a> Read for Encoder<'a> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 
         let mut counter: usize = 0;
@@ -171,8 +163,7 @@ impl<'a> Read for Encoder<'a>
     }
 }
 
-struct Decoder<'a>
-{
+struct Decoder<'a> {
     read: &'a mut Read,
     out_byte_buffer: VecDeque<u8>,
     low: u32,
@@ -185,7 +176,6 @@ struct Decoder<'a>
 }
 
 impl<'a> Decoder<'a> {
-
     fn new(read: &mut Read) -> Decoder {
 
         let n_symbols = 257; // 256 bytes + EOF marker
@@ -216,27 +206,23 @@ impl<'a> Decoder<'a> {
         }
 
         // loop until bit is consumed..
-        loop
-        {
+        loop {
             if self.high < HALF_VALUE {
-                self.low    = self.low    * 2;
-                self.high   = self.high   * 2 + 1;
+                self.low = self.low * 2;
+                self.high = self.high * 2 + 1;
                 self.buffer = self.buffer * 2 + bit as u32;
                 break;
-            }
-            else if self.low >= HALF_VALUE {
-                self.low    = 2 * (self.low    - HALF_VALUE);
-                self.high   = 2 * (self.high   - HALF_VALUE) + 1;
+            } else if self.low >= HALF_VALUE {
+                self.low = 2 * (self.low - HALF_VALUE);
+                self.high = 2 * (self.high - HALF_VALUE) + 1;
                 self.buffer = 2 * (self.buffer - HALF_VALUE) + bit as u32;
                 break;
-            }
-            else if (QUARTER_VALUE <= self.low) && (self.high < THREE_QUARTER_VALUE) {
-                self.low    = 2 * (self.low    - QUARTER_VALUE);
-                self.high   = 2 * (self.high   - QUARTER_VALUE) + 1;
+            } else if (QUARTER_VALUE <= self.low) && (self.high < THREE_QUARTER_VALUE) {
+                self.low = 2 * (self.low - QUARTER_VALUE);
+                self.high = 2 * (self.high - QUARTER_VALUE) + 1;
                 self.buffer = 2 * (self.buffer - QUARTER_VALUE) + bit as u32;
                 break;
-            }
-            else {
+            } else {
                 let slice_length = (self.high - self.low + 1) / self.tree.get_total();
                 let value = (self.buffer - self.low) / slice_length;
                 let symbol = self.tree.get_index(value);
@@ -245,7 +231,7 @@ impl<'a> Decoder<'a> {
                 let range_high = range_low + self.tree.get(symbol);
 
                 self.high = self.low + slice_length * range_high - 1;
-                self.low  = self.low + slice_length * range_low;
+                self.low = self.low + slice_length * range_low;
 
                 if self.tree.get(symbol) < SYMBOL_MAX_FREQ {
                     self.tree.increment(symbol as u32, INCREMENT_STEP);
@@ -253,8 +239,7 @@ impl<'a> Decoder<'a> {
 
                 if symbol == EOF_SYMBOL {
                     self.got_eof_symbol = true;
-                }
-                else {
+                } else {
                     if !self.got_eof_symbol {
                         self.out_byte_buffer.push_back(symbol as u8);
                     }
@@ -264,32 +249,33 @@ impl<'a> Decoder<'a> {
     }
     fn push_byte(&mut self, byte: u8) {
         for b in 0..8 {
-            self.push_bit(byte & (1 << (7-b)) > 0);
-        };
+            self.push_bit(byte & (1 << (7 - b)) > 0);
+        }
     }
     fn get_byte(&mut self) -> Result<u8> {
 
         // push bytes from input until there is something to read..
-        while self.out_byte_buffer.len() == 0
-        {
+        while self.out_byte_buffer.len() == 0 {
             let mut byte = [0u8];
-            match self.read.read_exact(&mut byte)
-            {
+            match self.read.read_exact(&mut byte) {
                 Ok(_) => {
                     self.push_byte(byte[0]);
                 }
                 Err(x) => {
                     if !self.hit_eof {
+
+
                         self.hit_eof = true;
+
                         // push zeros in hopes of finding the EOF
-                              for _ in 0..20 {
-                               self.push_byte(0);
+                        for _ in 0..20 {
+                            self.push_byte(0);
                         }
                     }
                     if self.out_byte_buffer.len() > 0 {
                         return Ok(self.out_byte_buffer.pop_front().unwrap());
                     }
-                    return Err(x)
+                    return Err(x);
                 }
             }
         }
@@ -297,13 +283,11 @@ impl<'a> Decoder<'a> {
     }
 }
 
-impl<'a> Read for Decoder<'a>
-{
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize>  {
+impl<'a> Read for Decoder<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
 
         let mut counter: usize = 0;
-        while counter < buf.len()
-        {
+        while counter < buf.len() {
             match self.get_byte() {
                 Ok(byte) => {
                     buf[counter] = byte;
@@ -322,7 +306,6 @@ impl<'a> Read for Decoder<'a>
     }
 }
 
-
 pub fn encode(read: &mut Read, write: &mut Write) -> Result<()> {
 
     let enc = Encoder::new(read);
@@ -330,11 +313,11 @@ pub fn encode(read: &mut Read, write: &mut Write) -> Result<()> {
         match byte {
             Ok(b) => {
                 match write.write_all(&[b]) {
-                    Ok(_) => {},
-                    Err(x) => return Err(x)
+                    Ok(_) => {}
+                    Err(x) => return Err(x),
                 }
-            },
-             Err(_) => {
+            }
+            Err(_) => {
                 break;
             }
         }
@@ -350,11 +333,11 @@ pub fn decode(read: &mut Read, write: &mut Write) -> Result<()> {
         match byte {
             Ok(b) => {
                 match write.write_all(&[b]) {
-                    Ok(_) => {},
-                    Err(x) => return Err(x)
+                    Ok(_) => {}
+                    Err(x) => return Err(x),
                 }
-            },
-             Err(_) => {
+            }
+            Err(_) => {
                 break;
             }
         }
@@ -387,7 +370,7 @@ fn test_coder_vec() {
 #[test]
 fn test_coder_file() {
 
-    use std::fs::{File};
+    use std::fs::File;
     let mut buf: Vec<u8> = Vec::new();
     let mut buf2: Vec<u8> = Vec::new();
 
@@ -395,8 +378,12 @@ fn test_coder_file() {
         buf.push((i % 100) as u8);
     }
 
-    encode(&mut buf.as_slice(), &mut File::create("tmp.cargotest").expect("Unable to open file")).unwrap();
-    decode(&mut File::open("tmp.cargotest").expect("Unable to open file"), &mut File::create("tmp.cargotest2").expect("Unable to open file")).unwrap();
+    encode(&mut buf.as_slice(),
+           &mut File::create("tmp.cargotest").expect("Unable to open file"))
+        .unwrap();
+    decode(&mut File::open("tmp.cargotest").expect("Unable to open file"),
+           &mut File::create("tmp.cargotest2").expect("Unable to open file"))
+        .unwrap();
 
     buf2.clear();
     File::open("tmp.cargotest2").expect("Unable to open file").read_to_end(&mut buf2).unwrap();
