@@ -3,9 +3,7 @@ pub const MAX_VALUE: u32 = 0x80000000u32;
 pub const THREE_QUARTER_VALUE: u32 = 0x60000000u32;
 pub const HALF_VALUE: u32 = 0x40000000u32;
 pub const QUARTER_VALUE: u32 = 0x20000000u32;
-pub const SYMBOL_MAX_FREQ: u32 = 1 << 16;
 pub const EOF_SYMBOL: u32 = 256;
-pub const INCREMENT_STEP: u32 = 10;
 
 #[test]
 fn test_coder_vec() {

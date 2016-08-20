@@ -1,11 +1,9 @@
 use dictionary::Dictionary;
-use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, SYMBOL_MAX_FREQ,
-            INCREMENT_STEP, EOF_SYMBOL};
+use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, EOF_SYMBOL};
 use sum_tree::SumTree;
 
 use std::io::{Read, Write, Result};
 use std::collections::vec_deque::VecDeque;
-
 
 struct Encoder<'a, Dict: Dictionary> {
     read: &'a mut Read,
@@ -86,11 +84,7 @@ impl<'a, Dict: Dictionary> Encoder<'a, Dict> {
             }
             break;
         }
-        if self.dict.symbol_frequency(symbol as u32) < SYMBOL_MAX_FREQ {
-            self.dict.increment(symbol as u32, INCREMENT_STEP);
-
-
-        }
+        self.dict.increment(symbol as u32);
     }
     fn get_byte(&mut self) -> Result<u8> {
 

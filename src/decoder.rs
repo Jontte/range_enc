@@ -1,6 +1,5 @@
 use dictionary::Dictionary;
-use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, SYMBOL_MAX_FREQ,
-            INCREMENT_STEP, EOF_SYMBOL};
+use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, EOF_SYMBOL};
 use sum_tree::SumTree;
 
 use std::io::{Read, Write, Result};
@@ -72,9 +71,7 @@ impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
                 self.high = self.low + slice_length * range_high - 1;
                 self.low = self.low + slice_length * range_low;
 
-                if self.dict.symbol_frequency(symbol) < SYMBOL_MAX_FREQ {
-                    self.dict.increment(symbol as u32, INCREMENT_STEP);
-                }
+                self.dict.increment(symbol as u32);
 
                 if symbol == EOF_SYMBOL {
                     self.got_eof_symbol = true;

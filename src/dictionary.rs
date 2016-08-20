@@ -6,7 +6,7 @@ pub trait Dictionary {
     fn symbol_frequency(&self, sym: u32) -> u32;
     fn symbol_lookup(&self, val: u32) -> u32;
     fn frequency_up_to_symbol(&self, sym: u32) -> u32;
-    fn increment(&mut self, sym: u32, amount: u32);
+    fn increment(&mut self, sym: u32);
 }
 
 impl Dictionary for SumTree<u32> {
@@ -29,7 +29,13 @@ impl Dictionary for SumTree<u32> {
     fn frequency_up_to_symbol(&self, sym: u32) -> u32 {
         self.get_before(sym as usize) as u32
     }
-    fn increment(&mut self, sym: u32, amount: u32) {
-        SumTree::increment(self, sym, amount)
+    fn increment(&mut self, sym: u32) {
+
+        let amount = 1;
+        const SYMBOL_MAX_FREQ: u32 = 1 << 16;
+
+        if self.symbol_frequency(sym) < SYMBOL_MAX_FREQ {
+            SumTree::increment(self, sym, amount);
+        }
     }
 }
