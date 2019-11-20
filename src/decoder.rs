@@ -1,12 +1,12 @@
+use coder::{EOF_SYMBOL, HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE};
 use dictionary::Dictionary;
-use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, EOF_SYMBOL};
 use sum_tree::SumTree;
 
-use std::io::{Read, Write, Result};
 use std::collections::vec_deque::VecDeque;
+use std::io::{Read, Result, Write};
 
 struct Decoder<'a, Dict: Dictionary> {
-    read: &'a mut Read,
+    read: &'a mut dyn Read,
     out_byte_buffer: VecDeque<u8>,
     low: u32,
     high: u32,
@@ -18,8 +18,7 @@ struct Decoder<'a, Dict: Dictionary> {
 }
 
 impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
-    fn new(read: &mut Read) -> Decoder<Dict> {
-
+    fn new(read: &mut dyn Read) -> Decoder<Dict> {
         let n_symbols = 257; // 256 bytes + EOF marker
 
         Decoder {
@@ -35,7 +34,6 @@ impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
         }
     }
     fn push_bit(&mut self, bit: bool) {
-
         // consume bit by building buffer in the beginning...
         if self.prepend_bit_counter > 0 {
             self.buffer = (self.buffer << 1) | bit as u32;
@@ -89,7 +87,6 @@ impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
         }
     }
     fn get_byte(&mut self) -> Result<u8> {
-
         // push bytes from input until there is something to read..
         while self.out_byte_buffer.len() == 0 {
             let mut byte = [0u8];
@@ -99,8 +96,6 @@ impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
                 }
                 Err(x) => {
                     if !self.hit_eof {
-
-
                         self.hit_eof = true;
 
                         // push zeros in hopes of finding the EOF
@@ -121,7 +116,6 @@ impl<'a, Dict: Dictionary> Decoder<'a, Dict> {
 
 impl<'a, Dict: Dictionary> Read for Decoder<'a, Dict> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-
         let mut counter: usize = 0;
         while counter < buf.len() {
             match self.get_byte() {
@@ -142,18 +136,15 @@ impl<'a, Dict: Dictionary> Read for Decoder<'a, Dict> {
     }
 }
 
-pub fn decode(read: &mut Read, write: &mut Write) -> Result<()> {
-
+pub fn decode(read: &mut dyn Read, write: &mut dyn Write) -> Result<()> {
     let dec: Decoder<SumTree<u32>> = Decoder::new(read);
 
     for byte in dec.bytes() {
         match byte {
-            Ok(b) => {
-                match write.write_all(&[b]) {
-                    Ok(_) => {}
-                    Err(x) => return Err(x),
-                }
-            }
+            Ok(b) => match write.write_all(&[b]) {
+                Ok(_) => {}
+                Err(x) => return Err(x),
+            },
             Err(_) => {
                 break;
             }

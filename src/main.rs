@@ -3,17 +3,16 @@ extern crate num;
 
 use getopts::Options;
 use std::env;
-use std::io::{BufReader, BufWriter};
 use std::fs::File;
+use std::io::{BufReader, BufWriter};
 
-mod dictionary;
-mod sum_tree;
 mod coder;
-mod encoder;
 mod decoder;
+mod dictionary;
+mod encoder;
+mod sum_tree;
 
 fn encode(input: &str, output: &str) {
-
     let f_in = File::open(input).expect("Unable to open file");
     let f_out = File::create(output).expect("Unable to open file");
 
@@ -24,7 +23,6 @@ fn encode(input: &str, output: &str) {
 }
 
 fn decode(input: &str, output: &str) {
-
     let f_in = File::open(input).expect("Unable to open file");
     let f_out = File::create(output).expect("Unable to open file");
 

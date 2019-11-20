@@ -1,12 +1,12 @@
+use coder::{EOF_SYMBOL, HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE};
 use dictionary::Dictionary;
-use coder::{HALF_VALUE, MAX_VALUE, QUARTER_VALUE, THREE_QUARTER_VALUE, EOF_SYMBOL};
 use sum_tree::SumTree;
 
-use std::io::{Read, Write, Result};
 use std::collections::vec_deque::VecDeque;
+use std::io::{Read, Result, Write};
 
 struct Encoder<'a, Dict: Dictionary> {
-    read: &'a mut Read,
+    read: &'a mut dyn Read,
     low: u32,
     high: u32,
     scale_counter: u32,
@@ -18,8 +18,7 @@ struct Encoder<'a, Dict: Dictionary> {
 }
 
 impl<'a, Dict: Dictionary> Encoder<'a, Dict> {
-    pub fn new(read: &mut Read) -> Encoder<Dict> {
-
+    pub fn new(read: &mut dyn Read) -> Encoder<Dict> {
         let n_symbols = 257; // 256 bytes + EOF marker
         Encoder {
             read: read,
@@ -75,7 +74,6 @@ impl<'a, Dict: Dictionary> Encoder<'a, Dict> {
                 continue;
             }
             if self.low >= QUARTER_VALUE && self.high < THREE_QUARTER_VALUE {
-
                 self.scale_counter = self.scale_counter + 1;
                 self.low = 2 * (self.low - QUARTER_VALUE);
                 self.high = 2 * (self.high - QUARTER_VALUE) + 1;
@@ -87,7 +85,6 @@ impl<'a, Dict: Dictionary> Encoder<'a, Dict> {
         self.dict.increment(symbol as u32);
     }
     fn get_byte(&mut self) -> Result<u8> {
-
         // push bytes from input until there is something to read..
         while self.out_byte_buffer.len() == 0 {
             let mut byte = [0u8];
@@ -127,7 +124,6 @@ impl<'a, Dict: Dictionary> Encoder<'a, Dict> {
 
 impl<'a, Dict: Dictionary> Read for Encoder<'a, Dict> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-
         let mut counter: usize = 0;
 
         while counter < buf.len() {
@@ -149,17 +145,14 @@ impl<'a, Dict: Dictionary> Read for Encoder<'a, Dict> {
     }
 }
 
-pub fn encode(read: &mut Read, write: &mut Write) -> Result<()> {
-
+pub fn encode(read: &mut dyn Read, write: &mut dyn Write) -> Result<()> {
     let enc: Encoder<SumTree<u32>> = Encoder::new(read);
     for byte in enc.bytes() {
         match byte {
-            Ok(b) => {
-                match write.write_all(&[b]) {
-                    Ok(_) => {}
-                    Err(x) => return Err(x),
-                }
-            }
+            Ok(b) => match write.write_all(&[b]) {
+                Ok(_) => {}
+                Err(x) => return Err(x),
+            },
             Err(_) => {
                 break;
             }

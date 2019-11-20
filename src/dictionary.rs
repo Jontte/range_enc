@@ -30,7 +30,6 @@ impl Dictionary for SumTree<u32> {
         self.get_before(sym as usize) as u32
     }
     fn increment(&mut self, sym: u32) {
-
         let amount = 1;
         const SYMBOL_MAX_FREQ: u32 = 1 << 16;
 

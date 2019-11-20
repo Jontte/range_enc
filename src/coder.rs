@@ -7,8 +7,8 @@ pub const EOF_SYMBOL: u32 = 256;
 
 #[test]
 fn test_coder_vec() {
-    use encoder;
     use decoder;
+    use encoder;
 
     let mut buf: Vec<u8> = Vec::new();
     let mut buf2: Vec<u8> = Vec::new();
@@ -31,8 +31,8 @@ fn test_coder_vec() {
 
 #[test]
 fn test_coder_file() {
-    use encoder;
     use decoder;
+    use encoder;
 
     use std::fs::File;
     use std::io::Read;
@@ -43,15 +43,22 @@ fn test_coder_file() {
         buf.push((i % 100) as u8);
     }
 
-    encoder::encode(&mut buf.as_slice(),
-                    &mut File::create("tmp.cargotest").expect("Unable to open file"))
-        .unwrap();
-    decoder::decode(&mut File::open("tmp.cargotest").expect("Unable to open file"),
-                    &mut File::create("tmp.cargotest2").expect("Unable to open file"))
-        .unwrap();
+    encoder::encode(
+        &mut buf.as_slice(),
+        &mut File::create("tmp.cargotest").expect("Unable to open file"),
+    )
+    .unwrap();
+    decoder::decode(
+        &mut File::open("tmp.cargotest").expect("Unable to open file"),
+        &mut File::create("tmp.cargotest2").expect("Unable to open file"),
+    )
+    .unwrap();
 
     buf2.clear();
-    File::open("tmp.cargotest2").expect("Unable to open file").read_to_end(&mut buf2).unwrap();
+    File::open("tmp.cargotest2")
+        .expect("Unable to open file")
+        .read_to_end(&mut buf2)
+        .unwrap();
     println!("size1: {}, size2: {}", buf.len(), buf2.len());
     assert!(buf == buf2);
 }

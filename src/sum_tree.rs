@@ -1,6 +1,6 @@
 use num;
-use std::cmp;
 use num::NumCast;
+use std::cmp;
 
 fn upper_power_of_two(mut v: u32) -> u32 {
     v -= 1;
@@ -19,18 +19,18 @@ pub struct SumTree<T> {
 }
 
 impl<T> SumTree<T>
-    where T: num::Num + Copy + num::traits::NumCast + cmp::Ord
+where
+    T: num::Num + Copy + num::traits::NumCast + cmp::Ord,
 {
     pub fn new(buckets: usize) -> SumTree<T> {
         let start = (upper_power_of_two(buckets as u32) - 1) as usize;
         SumTree {
-            tree: vec![NumCast::from(0).unwrap(); (2*start+1) as usize],
+            tree: vec![NumCast::from(0).unwrap(); (2 * start + 1) as usize],
             start_index: start,
         }
     }
 
     pub fn increment(&mut self, bucket: u32, amount: T) {
-
         let mut index = bucket as usize + self.start_index;
 
         while index != 0 {
@@ -64,7 +64,6 @@ impl<T> SumTree<T>
     }
 
     pub fn get_index(&self, value: T) -> usize {
-
         let mut index: usize = 0;
         let mut value = value;
 
@@ -89,7 +88,6 @@ impl<T> SumTree<T>
 
 #[test]
 fn test_tree() {
-
     let mut tree = SumTree::<u32>::new(8);
     tree.increment(0, 10);
     tree.increment(1, 10);
